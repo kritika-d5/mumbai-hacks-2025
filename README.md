@@ -15,20 +15,20 @@ A comprehensive news analysis platform that detects bias, extracts facts, and sh
 
 - **Backend**: FastAPI (Python) with LangChain agent orchestration
 - **Frontend**: React with Chart.js for visualizations
-- **Database**: PostgreSQL for metadata, Pinecone/Weaviate for vectors
+- **Database**: MongoDB for metadata, Pinecone for vectors
 - **NLP**: spaCy for NER, Hugging Face transformers for sentiment, sentence-transformers for embeddings
-- **LLM**: OpenAI/Anthropic for fact verification and summarization
+- **LLM**: Groq (llama-3.3-70b-versatile) for fact verification and summarization
 
 ## Quick Start
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.9+
 - Node.js 18+
-- PostgreSQL 14+
-- Pinecone account (or Weaviate)
+- MongoDB (local or Atlas)
+- Pinecone account (for vector storage)
 - NewsAPI account
-- OpenAI API key
+- Groq API key
 
 ### Backend Setup
 
@@ -36,11 +36,12 @@ A comprehensive news analysis platform that detects bias, extracts facts, and sh
 cd backend
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
-cp .env.example .env
-# Edit .env with your API keys
-alembic upgrade head  # Create database tables
+# Create .env file (see RUN_INSTRUCTIONS.md for template)
+# Edit .env with your API keys (MongoDB, Pinecone, Groq, NewsAPI)
 python run.py  # or: python -m uvicorn app.main:app --reload
 ```
+
+**Note**: MongoDB doesn't require migrations. Make sure MongoDB is running before starting the backend.
 
 ### Frontend Setup
 
@@ -54,9 +55,13 @@ npm run dev
 
 ### Environment Variables
 
-See `.env.example` files in both `backend/` and `frontend/` directories.
+Create a `.env` file in `backend/` with:
+- `MONGODB_URL` - MongoDB connection string (default: `mongodb://localhost:27017`)
+- `PINECONE_API_KEY` - Your Pinecone API key
+- `GROQ_API_KEY` - Your Groq API key (get from https://console.groq.com/keys)
+- `NEWSAPI_KEY` - Your NewsAPI key
 
-For detailed setup instructions, see [SETUP.md](SETUP.md).
+For detailed setup instructions, see [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md) or [SETUP.md](SETUP.md).
 
 ## Project Structure
 
@@ -88,11 +93,42 @@ newsprism/
 
 ## API Endpoints
 
-- `POST /api/search` - Search for articles by query
-- `GET /api/clusters/{cluster_id}` - Get cluster details
-- `GET /api/articles/{article_id}` - Get article details
-- `POST /api/analyze` - Trigger analysis for a query
-- `GET /api/bias/{cluster_id}` - Get bias scores for a cluster
+- `GET /` - API root
+- `GET /health` - Health check
+- `GET /docs` - Interactive API documentation (Swagger UI)
+- `POST /api/v1/search` - Search for articles by query
+- `POST /api/v1/search/analyze` - Trigger full analysis pipeline for a query
+- `GET /api/v1/search/clusters/{cluster_id}` - Get cluster details
+- `GET /api/v1/search/articles/{article_id}` - Get article details
+
+## Tech Stack
+
+- **Backend**: FastAPI, Pydantic v2, MongoDB (Motor), Pinecone, Groq
+- **Frontend**: React, Vite, Tailwind CSS, Chart.js
+- **ML/NLP**: spaCy, Hugging Face Transformers, Sentence Transformers
+
+## Getting API Keys
+
+1. **Groq**: https://console.groq.com/keys (for LLM features)
+2. **Pinecone**: https://www.pinecone.io (for vector storage)
+3. **NewsAPI**: https://newsapi.org (for news articles)
+
+## Quick Troubleshooting
+
+- **Backend won't start**: Check `.env` file exists and MongoDB is running
+- **Import errors**: Make sure you've installed dependencies: `pip install -r requirements.txt`
+- **Missing modules**: Install spaCy model: `python -m spacy download en_core_web_sm`
+- **CORS errors**: Backend defaults allow `localhost:3000` and `localhost:5173`
+- **Pinecone errors**: Make sure your Pinecone index exists and API key is correct
+
+For more detailed troubleshooting, see [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md).
+
+## Documentation
+
+- [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md) - Detailed setup and run instructions
+- [SETUP.md](SETUP.md) - Complete setup guide
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture details
+- [GROQ_MIGRATION.md](GROQ_MIGRATION.md) - Migration notes (Grok → Groq)
 
 ## License
 
