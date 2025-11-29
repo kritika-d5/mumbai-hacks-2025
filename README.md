@@ -125,10 +125,8 @@ For more detailed troubleshooting, see [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md
 
 ## Documentation
 
-- [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md) - Detailed setup and run instructions
 - [SETUP.md](SETUP.md) - Complete setup guide
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture details
-- [GROQ_MIGRATION.md](GROQ_MIGRATION.md) - Migration notes (Grok → Groq)
 
 ## License
 
