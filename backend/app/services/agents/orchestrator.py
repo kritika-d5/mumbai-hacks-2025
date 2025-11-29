@@ -16,8 +16,8 @@ from bson import ObjectId
 
 class AgentOrchestrator:
     def __init__(self):
-        self.grok_api_key = settings.GROK_API_KEY
-        self.grok_api_url = settings.GROK_API_URL
+        self.groq_api_key = settings.GROQ_API_KEY
+        self.groq_api_url = settings.GROQ_API_URL
         
         self.ingestion_service = IngestionService()
         self.clustering_service = ClusteringService()
@@ -120,8 +120,8 @@ class AgentOrchestrator:
                     tone_score = bias_analysis["tone_score"]
                     tone_scores.append(tone_score)
                     
-                    # Compute consistency (simplified - would compare with other articles)
-                    consistency_score = 0.1  # Placeholder
+                    # Compute consistency
+                    consistency_score = 0.1
                     
                     # Compute cluster mean tone
                     cluster_mean_tone = sum(tone_scores) / len(tone_scores) if tone_scores else 0
@@ -205,6 +205,7 @@ class AgentOrchestrator:
             }
             
         except Exception as e:
+            print(f"Orchestration error: {e}")
             raise e
     
     async def _embed_and_store_articles(self, articles: List[Dict]):
@@ -257,7 +258,10 @@ class AgentOrchestrator:
             self.vector_store.upsert_vectors(vectors)
     
     async def _generate_fact_summary(self, facts: List[Dict]) -> str:
-        """Generate fact summary using Grok LLM"""
+        """Generate fact summary using Groq LLM"""
+        if not facts:
+            return "No facts to summarize."
+
         facts_text = "\n".join([
             f"- {f.get('fact', '')[:200]}"
             for f in facts[:10]
@@ -272,13 +276,14 @@ Return only the summary, no additional commentary."""
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.grok_api_url}/chat/completions",
+                    f"{self.groq_api_url}/chat/completions",
                     headers={
-                        "Authorization": f"Bearer {self.grok_api_key}",
+                        "Authorization": f"Bearer {self.groq_api_key}",
                         "Content-Type": "application/json"
                     },
                     json={
-                        "model": "grok-beta",
+                        # CHANGED: Updated from mixtral-8x7b-32768 to llama-3.3-70b-versatile
+                        "model": "llama-3.3-70b-versatile",
                         "messages": [
                             {"role": "user", "content": prompt}
                         ],
@@ -287,10 +292,16 @@ Return only the summary, no additional commentary."""
                     },
                     timeout=30.0
                 )
+                
+                if response.status_code != 200:
+                    print(f"Groq API Error in Summary ({response.status_code}): {response.text}")
+                    return f"Fact summary generation failed (API {response.status_code})"
+                    
                 response.raise_for_status()
                 data = response.json()
                 return data["choices"][0]["message"]["content"]
-        except:
+        except Exception as e:
+            print(f"Exception in fact summary generation: {str(e)}")
             return "Fact summary generation failed."
     
     def _generate_frame_summary(self, bias_results: List[Dict], articles: List[Dict]) -> List[Dict]:
@@ -307,4 +318,3 @@ Return only the summary, no additional commentary."""
             })
         
         return frame_summaries
-

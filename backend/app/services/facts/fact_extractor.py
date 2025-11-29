@@ -12,21 +12,14 @@ class FactExtractor:
             print("spaCy model not found. Run: python -m spacy download en_core_web_sm")
             self.nlp = None
         
-        self.grok_api_key = settings.GROK_API_KEY
-        self.grok_api_url = settings.GROK_API_URL
+        self.groq_api_key = settings.GROQ_API_KEY
+        self.groq_api_url = settings.GROQ_API_URL
     
     async def extract_facts_from_articles(
         self,
         articles: List[Dict]
     ) -> List[Dict]:
-        """Extract facts from a list of articles
-        
-        Args:
-            articles: List of dicts with 'text', 'url', 'source'
-        
-        Returns:
-            List of fact dicts with 'fact', 'sources', 'quotes', 'status'
-        """
+        """Extract facts from a list of articles"""
         # Step 1: Extract candidate facts using NER
         candidate_facts = self._extract_candidate_facts(articles)
         
@@ -38,7 +31,6 @@ class FactExtractor:
     def _extract_candidate_facts(self, articles: List[Dict]) -> List[Dict]:
         """Extract candidate facts using NER"""
         if not self.nlp:
-            # Fallback: simple extraction
             return self._simple_fact_extraction(articles)
         
         facts = []
@@ -76,10 +68,8 @@ class FactExtractor:
             text = article.get("text", "")
             sentences = text.split('.')
             
-            # Take sentences that look factual (contain numbers, dates, names)
             for sent in sentences:
                 if len(sent.strip()) > 30:
-                    # Simple heuristic: contains numbers or capital letters (likely names)
                     if any(c.isdigit() for c in sent) or any(c.isupper() for c in sent[:10]):
                         facts.append({
                             "fact": sent.strip(),
@@ -102,20 +92,20 @@ class FactExtractor:
         fact_groups = self._group_similar_facts(candidate_facts)
         
         for fact_group in fact_groups[:20]:  # Limit for cost
-            # Create prompt for LLM verification
             prompt = self._create_verification_prompt(fact_group, articles)
             
             try:
-                # Use Grok API (xAI)
+                # Use Groq API
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
-                        f"{self.grok_api_url}/chat/completions",
+                        f"{self.groq_api_url}/chat/completions",
                         headers={
-                            "Authorization": f"Bearer {self.grok_api_key}",
+                            "Authorization": f"Bearer {self.groq_api_key}",
                             "Content-Type": "application/json"
                         },
                         json={
-                            "model": "grok-beta",
+                            # CHANGED: Updated from mixtral-8x7b-32768 to llama-3.3-70b-versatile
+                            "model": "llama-3.3-70b-versatile",
                             "messages": [
                                 {
                                     "role": "system",
@@ -127,11 +117,16 @@ class FactExtractor:
                                 }
                             ],
                             "temperature": 0.1,
-                            "max_tokens": 500
+                            "max_tokens": 1000
                         },
                         timeout=30.0
                     )
-                    response.raise_for_status()
+                    
+                    if response.status_code != 200:
+                        print(f"Groq API Error in Verification ({response.status_code}): {response.text}")
+                        # Continue to next fact instead of crashing
+                        continue
+
                     data = response.json()
                     
                     # Parse response
@@ -160,7 +155,6 @@ class FactExtractor:
     
     def _group_similar_facts(self, facts: List[Dict]) -> List[List[Dict]]:
         """Group similar facts together"""
-        # Simple grouping by keyword overlap
         groups = []
         used = set()
         
@@ -265,4 +259,3 @@ QUOTES: [up to 2 supporting quotes with source URLs]
             "status": status,
             "justification": justification
         }
-

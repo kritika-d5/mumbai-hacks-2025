@@ -1,41 +1,65 @@
 from typing import List, Dict, Optional
-import pinecone
 from app.core.config import settings
 import uuid
+import time
+
+try:
+    from pinecone import Pinecone, ServerlessSpec
+    PINECONE_AVAILABLE = True
+except ImportError:
+    PINECONE_AVAILABLE = False
+    Pinecone = None
 
 
 class VectorStore:
     def __init__(self):
-        pinecone.init(
-            api_key=settings.PINECONE_API_KEY,
-            environment=settings.PINECONE_ENVIRONMENT
-        )
+        self.index = None
         self.index_name = settings.PINECONE_INDEX_NAME
-        self._ensure_index()
-    
-    def _ensure_index(self):
-        """Ensure the Pinecone index exists"""
-        if self.index_name not in pinecone.list_indexes():
-            pinecone.create_index(
-                name=self.index_name,
-                dimension=settings.EMBEDDING_DIMENSION,
-                metric="cosine"
-            )
         
-        self.index = pinecone.Index(self.index_name)
+        # Initialize Pinecone client if available and configured
+        if PINECONE_AVAILABLE and settings.PINECONE_API_KEY:
+            try:
+                # Initialize new Pinecone client
+                pc = Pinecone(api_key=settings.PINECONE_API_KEY)
+                
+                # Ensure index exists
+                self._ensure_index(pc)
+                
+                # Connect to the index
+                self.index = pc.Index(self.index_name)
+            except Exception as e:
+                print(f"Warning: Pinecone initialization failed: {e}")
+                self.index = None
+    
+    def _ensure_index(self, pc):
+        """Ensure the Pinecone index exists using ServerlessSpec"""
+        try:
+            # Check if index exists
+            existing_indexes = [index.name for index in pc.list_indexes()]
+            
+            if self.index_name not in existing_indexes:
+                print(f"Creating new Pinecone index: {self.index_name}")
+                pc.create_index(
+                    name=self.index_name,
+                    dimension=settings.EMBEDDING_DIMENSION,
+                    metric="cosine",
+                    spec=ServerlessSpec(
+                        cloud="aws",
+                        region="us-east-1"
+                    )
+                )
+                # Wait a moment for index to be ready
+                time.sleep(10)
+        except Exception as e:
+            print(f"Warning: Could not ensure Pinecone index exists: {e}")
     
     def upsert_vectors(
         self,
         vectors: List[Dict],
         namespace: Optional[str] = None
     ):
-        """Upsert vectors to Pinecone
-        
-        Args:
-            vectors: List of dicts with 'id', 'values', and 'metadata'
-            namespace: Optional namespace for the vectors
-        """
-        if not vectors:
+        """Upsert vectors to Pinecone"""
+        if not vectors or not self.index:
             return
         
         # Format for Pinecone
@@ -51,7 +75,10 @@ class VectorStore:
         batch_size = 100
         for i in range(0, len(pinecone_vectors), batch_size):
             batch = pinecone_vectors[i:i + batch_size]
-            self.index.upsert(vectors=batch, namespace=namespace)
+            try:
+                self.index.upsert(vectors=batch, namespace=namespace)
+            except Exception as e:
+                print(f"Error upserting batch: {e}")
     
     def query_vectors(
         self,
@@ -61,22 +88,29 @@ class VectorStore:
         namespace: Optional[str] = None
     ) -> List[Dict]:
         """Query similar vectors from Pinecone"""
-        results = self.index.query(
-            vector=query_vector,
-            top_k=top_k,
-            include_metadata=True,
-            filter=filter,
-            namespace=namespace
-        )
-        
-        return [
-            {
-                "id": match.id,
-                "score": match.score,
-                "metadata": match.metadata
-            }
-            for match in results.matches
-        ]
+        if not self.index:
+            return []
+            
+        try:
+            results = self.index.query(
+                vector=query_vector,
+                top_k=top_k,
+                include_metadata=True,
+                filter=filter,
+                namespace=namespace
+            )
+            
+            return [
+                {
+                    "id": match.id,
+                    "score": match.score,
+                    "metadata": match.metadata
+                }
+                for match in results.matches
+            ]
+        except Exception as e:
+            print(f"Error querying vectors: {e}")
+            return []
     
     def delete_vectors(
         self,
@@ -84,8 +118,11 @@ class VectorStore:
         namespace: Optional[str] = None
     ):
         """Delete vectors by IDs"""
-        if ids:
-            self.index.delete(ids=ids, namespace=namespace)
+        if ids and self.index:
+            try:
+                self.index.delete(ids=ids, namespace=namespace)
+            except Exception as e:
+                print(f"Error deleting vectors: {e}")
     
     def delete_by_filter(
         self,
@@ -93,5 +130,8 @@ class VectorStore:
         namespace: Optional[str] = None
     ):
         """Delete vectors by metadata filter"""
-        self.index.delete(filter=filter, namespace=namespace)
-
+        if self.index:
+            try:
+                self.index.delete(filter=filter, namespace=namespace)
+            except Exception as e:
+                print(f"Error deleting by filter: {e}")

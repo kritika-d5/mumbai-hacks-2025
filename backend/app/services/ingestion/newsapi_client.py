@@ -25,7 +25,8 @@ class NewsAPIClient:
                 "q": query,
                 "language": language,
                 "pageSize": min(page_size, 100),
-                "sortBy": "publishedAt"
+                "sortBy": "publishedAt",
+                "searchIn": "title,description"  # Restrict search to title/desc for better relevance
             }
             
             if date_from:
@@ -87,4 +88,3 @@ class NewsAPIClient:
                     raise Exception(f"NewsAPI error: {data.get('message', 'Unknown error')}")
             except httpx.HTTPError as e:
                 raise Exception(f"NewsAPI request failed: {str(e)}")
-

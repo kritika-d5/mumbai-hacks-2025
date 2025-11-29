@@ -34,7 +34,7 @@ class NEREntity(BaseModel):
 
 
 class ArticleResponse(ArticleBase):
-    id: UUID
+    id: str  # Changed from UUID to str to support MongoDB ObjectIds
     scraped_at: datetime
     chunks: Optional[List[Chunk]] = None
     ner_entities: Optional[List[NEREntity]] = None
@@ -43,7 +43,7 @@ class ArticleResponse(ArticleBase):
     omission_score: Optional[float] = None
     consistency_score: Optional[float] = None
     bias_index: Optional[float] = None
-    cluster_id: Optional[UUID] = None
+    cluster_id: Optional[str] = None  # Changed from Optional[UUID]
     
     class Config:
         from_attributes = True
@@ -69,10 +69,10 @@ class FrameSummary(BaseModel):
 
 
 class ClusterResponse(BaseModel):
-    id: UUID
+    id: str  # Changed from UUID to str
     query: str
     created_at: datetime
-    canonical_article_id: Optional[UUID] = None
+    canonical_article_id: Optional[str] = None  # Changed from Optional[UUID]
     fact_summary: Optional[str] = None
     frame_summary: Optional[List[FrameSummary]] = None
     facts: Optional[List[Fact]] = None
@@ -95,4 +95,3 @@ class AnalyzeRequest(BaseModel):
     date_from: Optional[datetime] = None
     date_to: Optional[datetime] = None
     sources: Optional[List[str]] = None
-
